@@ -1,0 +1,5 @@
+/target
+/Cargo.lock
+.DS_Store
+atomic-red-team/
+/atomic-red-team-master/
