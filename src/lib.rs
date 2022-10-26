@@ -7,8 +7,8 @@ mod util;
 pub use util::{get_all_executors, parse_all};
 
 use error::ArrError;
-use find_file::find_file;
-use parse_command::parse_command;
+use find_file::{find_atomics_dir, find_file};
+use parse_command::{parse_command, update_path};
 use parse_yaml::{parse_art_file, AtomicReadTeamTechnique};
 
 use log::{error, info};
@@ -39,8 +39,11 @@ impl Arr {
     }
 
     pub fn run(&self) -> Result<(), ArrError> {
+        // find the `atomics` directory
+        let atomics_dir = find_atomics_dir(&self.art_path)?;
+
         // find the YAML file
-        let art_file = find_file(&self.technique, &self.art_path)?;
+        let art_file = find_file(&self.technique, &atomics_dir)?;
 
         // parse the YAML
         let yaml = parse_art_file(&art_file)?;
@@ -54,23 +57,23 @@ impl Arr {
         }
 
         // combine default and provided variables
-        let args = gather_args(&yaml, self.vars.clone(), self.test_num);
+        let args = gather_args(&yaml, self.vars.clone(), self.test_num, &atomics_dir);
 
         // run the check
-        let check_command = get_check_command(&yaml, self.test_num, &art_file, &args)?;
+        let check_command = get_check_command(&yaml, self.test_num, &atomics_dir, &args)?;
         for (command, executor) in check_command {
             execute(&command, &executor)?;
         }
 
         // run the dependency
-        let dependency_command = get_dependency_command(&yaml, self.test_num, &art_file, &args)?;
+        let dependency_command = get_dependency_command(&yaml, self.test_num, &atomics_dir, &args)?;
         for (command, executor) in dependency_command {
             execute(&command, &executor)?;
         }
 
         // run the attack
         let (attack_command, attack_executor) =
-            get_attack_command(&yaml, self.test_num, &art_file, &args)?;
+            get_attack_command(&yaml, self.test_num, &atomics_dir, &args)?;
 
         execute(&attack_command, &attack_executor)?;
 
@@ -78,8 +81,11 @@ impl Arr {
     }
 
     pub fn cleanup(&self) -> Result<(), ArrError> {
+        // find the `atomics` directory
+        let atomics_dir = find_atomics_dir(&self.art_path)?;
+
         // find the YAML file
-        let art_file = find_file(&self.technique, &self.art_path)?;
+        let art_file = find_file(&self.technique, &atomics_dir)?;
 
         // parse the YAML
         let yaml = parse_art_file(&art_file)?;
@@ -93,11 +99,16 @@ impl Arr {
         }
 
         // combine default and provided variables
-        let args = gather_args(&yaml, self.vars.clone(), self.test_num);
+        let args = gather_args(&yaml, self.vars.clone(), self.test_num, &atomics_dir);
 
         // run the cleanup
         let (cleanup_command, cleanup_executor) =
-            get_cleanup_command(&yaml, self.test_num, &art_file, &args)?;
+            get_cleanup_command(&yaml, self.test_num, &atomics_dir, &args)?;
+
+        if cleanup_command.is_empty() {
+            error!("This test does not have a cleanup command");
+            return Err(ArrError::Other("No cleanup command".to_string()));
+        }
 
         execute(&cleanup_command, &cleanup_executor)?;
 
@@ -153,33 +164,43 @@ fn gather_args(
     yaml: &AtomicReadTeamTechnique,
     vars: HashMap<String, String>,
     test_num: usize,
+    atomics_dir: &Path,
 ) -> HashMap<String, String> {
+    // get the default args
     let mut args: HashMap<String, String> = yaml.atomic_tests[test_num]
         .input_arguments
         .iter()
         .map(|(k, v)| (k.clone(), v.default.clone()))
         .collect();
 
+    // replace defaults with user's args
     args.extend(vars);
 
-    for (k, v) in args.iter() {
-        info!("Set variable `{}` to `{}`", k, v);
+    // parse the args to update the "PathToAtomics"
+    let mut parsed_args = HashMap::new();
+
+    for (k, v) in args.into_iter() {
+        let (_, v) = update_path(&atomics_dir.to_string_lossy())(&v).unwrap();
+
+        info!("Set variable `{}` to `{}`", &k, &v);
+
+        parsed_args.insert(k, v);
     }
 
-    args
+    parsed_args
 }
 
 fn get_check_command(
     yaml: &AtomicReadTeamTechnique,
     test_num: usize,
-    art_path: &Path,
+    atomics_dir: &Path,
     vars: &HashMap<String, String>,
 ) -> Result<Vec<(String, String)>, ArrError> {
     let mut commands: Vec<(String, String)> = Vec::new();
     if let Some(dependency_executor) = &yaml.atomic_tests[test_num].dependency_executor_name {
         if let Some(dependencies) = &yaml.atomic_tests[test_num].dependencies {
             for dependency in dependencies {
-                let command = parse_commands(&dependency.prereq_command, art_path, vars)?;
+                let command = parse_commands(&dependency.prereq_command, atomics_dir, vars)?;
                 commands.push((command, dependency_executor.to_string()));
             }
         }
@@ -196,14 +217,14 @@ fn get_check_command(
 fn get_dependency_command(
     yaml: &AtomicReadTeamTechnique,
     test_num: usize,
-    art_path: &Path,
+    atomics_dir: &Path,
     vars: &HashMap<String, String>,
 ) -> Result<Vec<(String, String)>, ArrError> {
     let mut commands: Vec<(String, String)> = Vec::new();
     if let Some(dependency_executor) = &yaml.atomic_tests[test_num].dependency_executor_name {
         if let Some(dependencies) = &yaml.atomic_tests[test_num].dependencies {
             for dependency in dependencies {
-                let command = parse_commands(&dependency.get_prereq_command, art_path, vars)?;
+                let command = parse_commands(&dependency.get_prereq_command, atomics_dir, vars)?;
                 commands.push((command, dependency_executor.to_string()));
             }
         }
@@ -220,7 +241,7 @@ fn get_dependency_command(
 fn get_attack_command(
     yaml: &AtomicReadTeamTechnique,
     test_num: usize,
-    art_path: &Path,
+    atomics_dir: &Path,
     vars: &HashMap<String, String>,
 ) -> Result<(String, String), ArrError> {
     let command = yaml.atomic_tests[test_num]
@@ -229,7 +250,7 @@ fn get_attack_command(
         .clone()
         .unwrap_or_else(|| "".to_string());
     let executor = yaml.atomic_tests[test_num].executor.name.to_string();
-    let command = parse_commands(&command, art_path, vars)?;
+    let command = parse_commands(&command, atomics_dir, vars)?;
 
     info!("The attack executor is `{}`", &executor);
     info!("The attack command is `{}`", &command);
@@ -240,7 +261,7 @@ fn get_attack_command(
 fn get_cleanup_command(
     yaml: &AtomicReadTeamTechnique,
     test_num: usize,
-    art_path: &Path,
+    atomics_dir: &Path,
     vars: &HashMap<String, String>,
 ) -> Result<(String, String), ArrError> {
     let command = yaml.atomic_tests[test_num]
@@ -249,7 +270,7 @@ fn get_cleanup_command(
         .clone()
         .unwrap_or("".to_string());
     let executor = yaml.atomic_tests[test_num].executor.name.to_string();
-    let command = parse_commands(&command, art_path, vars)?;
+    let command = parse_commands(&command, atomics_dir, vars)?;
 
     info!("The cleanup executor is `{}`", &executor);
     info!("The cleanup command is `{}`", &command);
@@ -259,12 +280,12 @@ fn get_cleanup_command(
 
 fn parse_commands(
     commands: &str,
-    art_path: &Path,
+    atomics_dir: &Path,
     vars: &HashMap<String, String>,
 ) -> Result<String, ArrError> {
     let parsed_commands = commands
         .lines()
-        .map(|command| parse_command(command, art_path, vars))
+        .map(|command| parse_command(command, atomics_dir, vars))
         .collect::<Result<Vec<_>, _>>()?;
 
     let commands = parsed_commands.join(";");
@@ -281,7 +302,7 @@ fn execute(command: &str, executor: &str) -> Result<(), ArrError> {
         .arg(executor_arg)
         .arg(&command)
         .output()
-        .map_err(ArrError::CommandIoFailure)?;
+        .map_err(|e| ArrError::CommandIoFailure(e.to_string()))?;
 
     match output.status.success() {
         true => {

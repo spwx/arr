@@ -43,11 +43,11 @@ fn get_vars<'i>(
     }
 }
 
-fn update_path(art_path: &str) -> impl FnMut(&str) -> IResult<&str, String> + '_ {
+pub fn update_path(atomics_dir: &str) -> impl FnMut(&str) -> IResult<&str, String> + '_ {
     move |input| {
         let (tail, head) = many0(alt((
             map(is_not("P"), String::from),
-            map(tag("PathToAtomicsFolder"), |_| art_path.to_string()),
+            map(tag("PathToAtomicsFolder"), |_| atomics_dir.to_string()),
             map(take(1usize), String::from),
         )))(input)?;
 
@@ -59,13 +59,17 @@ fn update_path(art_path: &str) -> impl FnMut(&str) -> IResult<&str, String> + '_
 
 pub fn parse_command(
     command: &str,
-    art_path: &Path,
+    atomics_dir: &Path,
     args: &HashMap<String, String>,
 ) -> Result<String, ArrError> {
-    let art_path = art_path.to_str().unwrap_or("");
+    let path = atomics_dir.to_str().unwrap_or("");
+
+    log::info!("Path: {}", &path);
 
     let (_tail, parsed_command) =
-        update_path(art_path)(command).map_err(|e| ArrError::OtherNomError(e.to_string()))?;
+        update_path(path)(command).map_err(|e| ArrError::OtherNomError(e.to_string()))?;
+
+    log::info!("Path: {}", &parsed_command);
 
     let res = match get_vars(args)(&parsed_command) {
         Ok((_tail, c)) => Ok(c),
@@ -90,21 +94,21 @@ mod test {
         args
     }
 
-    // #[test]
-    // fn test_parse_command() {
-    //     assert_eq!(
-    //         parse_command("abc_#{var1}_b_c", Path::new("art"), &setup_args()),
-    //         Ok("abc_1_b_c".to_string()),
-    //     );
-    // }
+    #[test]
+    fn test_parse_command() {
+        assert_eq!(
+            parse_command("abc_#{var1}_b_c", Path::new("art"), &setup_args()),
+            Ok("abc_1_b_c".to_string()),
+        );
+    }
 
-    // #[test]
-    // fn test_parse_command_failure() {
-    //     assert_eq!(
-    //         parse_command("abc_#{var9}_b_c", Path::new("art"), &setup_args()),
-    //         Err(ArrError::ArgValueNotFound("var9".to_string()))
-    //     );
-    // }
+    #[test]
+    fn test_parse_command_failure() {
+        assert_eq!(
+            parse_command("abc_#{var9}_b_c", Path::new("art"), &setup_args()),
+            Err(ArrError::ArgValueNotFound("var9".to_string()))
+        );
+    }
 
     #[test]
     fn no_vars() {

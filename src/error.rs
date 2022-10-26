@@ -1,15 +1,15 @@
 use std::{error::Error, fmt};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ArrError {
     ArgValueNotFound(String),
     OtherNomError(String),
     OsNotSupported,
     FileNotFound(String),
-    CannotParseYaml(serde_yaml::Error),
+    CannotParseYaml(String),
     CannotLocateYamlFile,
     FilePathNotSet(String),
-    CommandIoFailure(std::io::Error),
+    CommandIoFailure(String),
     CommandExecutionFailed,
     RootRequired,
     Other(String),
@@ -29,7 +29,7 @@ impl fmt::Display for ArrError {
             ArrError::FilePathNotSet(s) => write!(f, "{}", s),
             ArrError::Other(s) => write!(f, "{}", s),
             ArrError::RootRequired => write!(f, "Root required"),
-            ArrError::CommandIoFailure(e) => write!(f, "{}", e),
+            ArrError::CommandIoFailure(s) => write!(f, "{}", s),
             ArrError::CommandExecutionFailed => {
                 write!(f, "Command ran, but returned an unsuccess return code")
             }

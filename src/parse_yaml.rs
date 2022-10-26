@@ -63,7 +63,7 @@ pub fn parse_art_file(art_technique_file: &Path) -> Result<AtomicReadTeamTechniq
         }
         Err(e) => {
             error!("Failed to parse: {}", &art_technique_file.to_string_lossy());
-            Err(ArrError::CannotParseYaml(e))
+            Err(ArrError::CannotParseYaml(e.to_string()))
         }
     }
 }
