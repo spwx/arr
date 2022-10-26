@@ -22,10 +22,34 @@ enum Commands {
     /// Helpful developer utilities
     #[command(subcommand)]
     Utils(Utils),
+    /// Run the clean up for a Test
+    Cleanup(Cleanup),
 }
 
 #[derive(Args)]
 struct Run {
+    /// Technique number
+    technique: String,
+
+    /// Test number
+    #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..))]
+    test_number: u8,
+
+    /// Set a variable
+    #[arg(long = "set-var", short = 's', value_parser = parse_vars, value_name = "VARIABLE=VALUE")]
+    vars: Vec<(String, String)>,
+
+    /// Path to ART yaml files
+    #[arg(short, long, default_value = ".")]
+    path: PathBuf,
+
+    /// Cleanup immediately after running the test
+    #[arg(short, long, default_value_t = false)]
+    cleanup: bool,
+}
+
+#[derive(Args)]
+struct Cleanup {
     /// Technique number
     technique: String,
 
@@ -88,7 +112,13 @@ fn main() {
             let arr = Arr::new(args.technique.clone(), vars, test_number, args.path.clone());
 
             if arr.run().is_ok() {
-                println!("Success!")
+                println!("Test was successful!")
+            }
+
+            if args.cleanup {
+                if arr.cleanup().is_ok() {
+                    println!("Cleanup successeful!")
+                }
             }
         }
         Commands::Utils(utils) => match utils {
@@ -99,5 +129,15 @@ fn main() {
             },
             // Utils::RunAll(p) => arr::run_all(&p.path),
         },
+        Commands::Cleanup(args) => {
+            let vars: HashMap<String, String> = args.vars.clone().into_iter().collect();
+            let test_number = (args.test_number - 1) as usize;
+
+            let arr = Arr::new(args.technique.clone(), vars, test_number, args.path.clone());
+
+            if arr.cleanup().is_ok() {
+                println!("Success!")
+            }
+        }
     }
 }

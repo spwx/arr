@@ -76,6 +76,33 @@ impl Arr {
 
         Ok(())
     }
+
+    pub fn cleanup(&self) -> Result<(), ArrError> {
+        // find the YAML file
+        let art_file = find_file(&self.technique, &self.art_path)?;
+
+        // parse the YAML
+        let yaml = parse_art_file(&art_file)?;
+
+        // verify the chosen test works with this OS
+        is_os_supported(&yaml, self.test_num)?;
+
+        // check super user privileges
+        if cfg!(unix) {
+            check_superuser_requirement(&yaml, self.test_num)?;
+        }
+
+        // combine default and provided variables
+        let args = gather_args(&yaml, self.vars.clone(), self.test_num);
+
+        // run the cleanup
+        let (cleanup_command, cleanup_executor) =
+            get_cleanup_command(&yaml, self.test_num, &art_file, &args)?;
+
+        execute(&cleanup_command, &cleanup_executor)?;
+
+        Ok(())
+    }
 }
 
 fn is_os_supported(yaml: &AtomicReadTeamTechnique, test_num: usize) -> Result<(), ArrError> {
@@ -206,6 +233,26 @@ fn get_attack_command(
 
     info!("The attack executor is `{}`", &executor);
     info!("The attack command is `{}`", &command);
+
+    Ok((command, executor))
+}
+
+fn get_cleanup_command(
+    yaml: &AtomicReadTeamTechnique,
+    test_num: usize,
+    art_path: &Path,
+    vars: &HashMap<String, String>,
+) -> Result<(String, String), ArrError> {
+    let command = yaml.atomic_tests[test_num]
+        .executor
+        .cleanup_command
+        .clone()
+        .unwrap_or("".to_string());
+    let executor = yaml.atomic_tests[test_num].executor.name.to_string();
+    let command = parse_commands(&command, art_path, vars)?;
+
+    info!("The cleanup executor is `{}`", &executor);
+    info!("The cleanup command is `{}`", &command);
 
     Ok((command, executor))
 }
