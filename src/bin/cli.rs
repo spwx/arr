@@ -112,7 +112,7 @@ fn main() {
             let arr = Arr::new(args.technique.clone(), vars, test_number, args.path.clone());
 
             if arr.run().is_ok() {
-                println!("Test was successful!")
+                println!("Test ran successfully!")
             }
 
             if args.cleanup {
