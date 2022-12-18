@@ -1,0 +1,105 @@
+#+title: Notes
+
+* Flow
+** DONE Find ATR =atomics= Directory
+** DONE Find ATR File
+** DONE Read YAML
+** DONE Ensure The Test Can Run On The Current System
+** DONE Check For Elevated Privileges
+** DONE Gather Variables And Values Into A =HashMap=
+** DONE Replace Input Arguments
+** DONE Execute Check Dependency
+** DONE Execute Dependencies
+** DONE Execute Commands
+
+* Utilities
+** DONE Test The Parser: Parse Every YAML File
+** DONE List The Number Of Times Each Executor Is Used
+
+* CLI Functions
+| Command | Function               |
+|---------+------------------------|
+| run     | run test(s)            |
+| get     | get tests              |
+| update  | update tests           |
+| ls      | list tests             |
+| info    | get info about test(s) |
+
+* To Do
+** DONE Add Error Handling To YAML Parser
+** TODO Add CLI Auto Completion
+** TODO Add =run all=
+** TODO Create a Test VM
+** DONE Implement Cleanup
+** TODO Run Multiple Tests Concurrently
+** TODO TUI
+
+* Semver
+https://semver.org/
+
+=MAJOR.MINOR.PATCH=
+
+- Update =MAJOR= version when you make incompatible API changes
+- Update =MINOR= version when you add functionality in a backwards compatible
+  manner
+- Update =PATCH= version when you make backwards compatible bug fixes
+
+Additional labels for pre-release and build metadata are available as extensions
+to the MAJOR.MINOR.PATCH format.
+
+Example: =2.3.4-alpha=
+#+begin_example
+0.1.2-alpha
+2.0.0-rc.2
+1.2.3-rc.1
+#+end_example
+
+* Conventional Commits
+** Links
+https://www.conventionalcommits.org/en/v1.0.0/
+https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13
+
+** Skeleton
+  #+begin_example
+<type>[(optional scope)][!]: <description>
+
+[optional body]
+
+[optional footer(s)]
+  #+end_example
+
+- body and footers may use punctuation
+
+** Commit Types
+#+CAPTION: Commit Types
+| Type  | SemVer Change | Meaning       |
+|-------+---------------+---------------|
+| feat  | minor         | add a feature |
+| fix   | patch         | fix something |
+
+Additional Commit Types from [[https://github.com/conventional-changelog/commitlint/tree/master/@commitlint/config-conventional#type-enum][here]]:
+- build
+- chore
+- ci
+- docs
+- perf
+- refactor
+- revert
+- style
+- test
+
+** Breaking Changes
+- use a =!= after the type and scope to indicate a breaking change
+- also, use =BREAKING CHANGES:= in the footer
+
+#+begin_example
+chore!: drop support for Node 6
+
+BREAKING CHANGE: use JavaScript features not available in Node 6
+#+end_example
+
+
+* GitHub Actions
+** Action To Compile Code
+** Action To Build Releases Notes
+** Action to Attach Binary Releases To Notes
